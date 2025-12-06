@@ -50,6 +50,12 @@ sys_socket_t UDP_Init (void)
 
 	// determine my name & address
 	myAddr = htonl(INADDR_LOOPBACK);
+#ifdef XBOX
+	if (NET_Xbox_GetHostname(buff, MAXHOSTNAMELEN) != 0)
+		strcpy(buff, "localhost");
+	if (NET_Xbox_GetLocalAddr(&myAddr) != 0)
+		Con_SafePrintf("UDP_Init: WARNING: GetLocalAddr failed\n");
+#else
 	if (gethostname(buff, MAXHOSTNAMELEN) != 0)
 	{
 		err = SOCKETERRNO;
@@ -102,6 +108,7 @@ sys_socket_t UDP_Init (void)
 			}
 		}
 	}
+#endif
 
 	if ((net_controlsocket = UDP_OpenSocket(0)) == INVALID_SOCKET)
 	{
@@ -270,6 +277,11 @@ sys_socket_t UDP_CheckNewConnections (void)
 	if (net_acceptsocket == INVALID_SOCKET)
 		return INVALID_SOCKET;
 
+#ifdef XBOX
+	char buf[4096];
+	if (recvfrom(net_acceptsocket, buf, sizeof(buf), MSG_PEEK, NULL, NULL) >= 0)
+		return net_acceptsocket;
+#else
 	if (ioctl (net_acceptsocket, FIONREAD, &available) == -1)
 	{
 		int err = SOCKETERRNO;
@@ -277,6 +289,7 @@ sys_socket_t UDP_CheckNewConnections (void)
 	}
 	if (available)
 		return net_acceptsocket;
+#endif
 	// quietly absorb empty packets
 	recvfrom (net_acceptsocket, buff, 0, 0, (struct sockaddr *) &from, &fromlen);
 	return INVALID_SOCKET;

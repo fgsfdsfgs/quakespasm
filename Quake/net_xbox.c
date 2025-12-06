@@ -60,6 +60,25 @@ void NET_Xbox_Shutdown(void)
 	xnet_inited = FALSE;
 }
 
+int NET_Xbox_GetLocalAddr(in_addr_t *addr)
+{
+	if (!xnet_inited || !addr)
+	{
+		errno = EFAULT;
+		return -1;
+	}
+
+	const ip4_addr_t *localaddr = netif_ip4_addr(g_pnetif);
+	if (localaddr)
+	{
+		*addr = localaddr->addr;
+		return 0;
+	}
+
+	errno = EFAULT;
+	return -1;
+}
+
 int NET_Xbox_GetHostname(char *name, int namelen)
 {
 	if (!xnet_inited || !name)

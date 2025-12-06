@@ -22,8 +22,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifndef __NET_XBOX_H
 #define __NET_XBOX_H
 
+#include "net_sys.h"
+
 void NET_Xbox_Init(void);
 void NET_Xbox_Shutdown(void);
 int NET_Xbox_GetHostname(char *name, int namelen);
+int NET_Xbox_GetLocalAddr(in_addr_t *addr);
 
 #endif // _NET_XBOX_H
