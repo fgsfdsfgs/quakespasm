@@ -1,5 +1,13 @@
 # Quakespasm - Xbox port
 
+## How to play
+
+1. Put `default.xbe` into a folder on your HDD.
+2. Put the `id1` directory from your Quake install next to it.
+3. Delete any `.cfg` files that are in the `id1` directory.
+4. (Optional) Put `quakespasm.pak` from the `Quake` directory in this repo into the `id1` directory.
+5. Run the XBE.
+
 ## How to build
 
 This should work on Linux or WSL. You need clang and lld installed before installing NXDK.
