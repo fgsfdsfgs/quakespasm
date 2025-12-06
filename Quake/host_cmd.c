@@ -29,6 +29,12 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
 #endif
+#ifdef XBOX
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
+#endif
 
 extern cvar_t	pausable;
 extern cvar_t	nomonsters;
@@ -287,7 +293,7 @@ void Modlist_Init (void)
 	{
 		if (!strcmp(fdat.cFileName, ".") || !strcmp(fdat.cFileName, ".."))
 			continue;
-		q_snprintf (mod_string, sizeof(mod_string), "%s/%s", com_basedir, fdat.cFileName);
+		q_snprintf (mod_string, sizeof(mod_string), "%s" PATHSEP "%s", com_basedir, fdat.cFileName);
 		attribs = GetFileAttributes (mod_string);
 		if (attribs != INVALID_FILE_ATTRIBUTES && (attribs & FILE_ATTRIBUTE_DIRECTORY)) {
 			/* don't bother testing for pak files / progs.dat */
@@ -1125,7 +1131,7 @@ static void Host_Savegame_f (void)
 		}
 	}
 
-	q_snprintf (name, sizeof(name), "%s/%s", com_gamedir, Cmd_Argv(1));
+	q_snprintf (name, sizeof(name), "%s" PATHSEP "%s", com_gamedir, Cmd_Argv(1));
 	COM_AddExtension (name, ".sav", sizeof(name));
 
 	Con_Printf ("Saving game to %s...\n", name);
@@ -1207,7 +1213,7 @@ static void Host_Loadgame_f (void)
 
 	cls.demonum = -1;		// stop demo loop in case this fails
 
-	q_snprintf (name, sizeof(name), "%s/%s", com_gamedir, Cmd_Argv(1));
+	q_snprintf (name, sizeof(name), "%s" PATHSEP "%s", com_gamedir, Cmd_Argv(1));
 	COM_AddExtension (name, ".sav", sizeof(name));
 
 // we can't call SCR_BeginLoadingPlaque, because too much stack space has

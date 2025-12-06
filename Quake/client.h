@@ -266,10 +266,15 @@ extern	cvar_t	m_side;
 
 extern	cvar_t	cl_startdemos;
 
-
+#ifdef XBOX
+#define	MAX_TEMP_ENTITIES	128		//johnfitz -- was 64
+#define	MAX_STATIC_ENTITIES	256	//ericw -- was 512	//johnfitz -- was 128
+#define	MAX_VISEDICTS		2048	// larger, now we support BSP2
+#else
 #define	MAX_TEMP_ENTITIES	256		//johnfitz -- was 64
 #define	MAX_STATIC_ENTITIES	4096	//ericw -- was 512	//johnfitz -- was 128
 #define	MAX_VISEDICTS		4096	// larger, now we support BSP2
+#endif
 
 extern	client_state_t	cl;
 

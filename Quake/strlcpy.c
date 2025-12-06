@@ -16,7 +16,11 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+#ifdef XBOX
+#include <stdlib.h>
+#else
 #include <sys/types.h>
+#endif
 #include <string.h>
 
 #include "strl_fn.h"

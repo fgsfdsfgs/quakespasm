@@ -23,10 +23,15 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "quakedef.h"
 
+#ifdef XBOX
+#define ABSOLUTE_MAX_PARTICLES	4096		// default max # of particles at one time
+#define ABSOLUTE_MIN_PARTICLES	1024		// no fewer than this no matter what's on the command line
+#define DEFAULT_NUM_PARTICLES	2048
+#else
 #define ABSOLUTE_MAX_PARTICLES	32768		// default max # of particles at one time
-#define ABSOLUTE_MIN_PARTICLES	512		// no fewer than this no matter what's
-										//  on the command line
+#define ABSOLUTE_MIN_PARTICLES	512		// no fewer than this no matter what's on the command line
 #define DEFAULT_NUM_PARTICLES	16384
+#endif
 
 static int	ramp1[8] = {0x6f, 0x6d, 0x6b, 0x69, 0x67, 0x65, 0x63, 0x61};
 static int	ramp2[8] = {0x6f, 0x6e, 0x6d, 0x6c, 0x6b, 0x6a, 0x68, 0x66};

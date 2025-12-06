@@ -35,6 +35,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifdef __EMSCRIPTEN__
 #include <gl4esinit.h>
 #endif
+#ifdef XBOX
+#include <hal/video.h>
+#include <pbkit/pbkit.h>
+#include "net_xbox.h"
+#endif
 
 static void Sys_AtExit (void)
 {
@@ -59,7 +64,12 @@ static void Sys_InitSDL (void)
 	atexit(Sys_AtExit);
 }
 
+#ifdef XBOX
+#define DEFAULT_MEMORY (24 * 1024 * 1024)
+#define PBKIT_SIZE (2 * 1024 * 1024)
+#else
 #define DEFAULT_MEMORY (256 * 1024 * 1024) // ericw -- was 72MB (64-bit) / 64MB (32-bit)
+#endif
 
 static quakeparms_t	parms;
 
@@ -84,6 +94,14 @@ int main(int argc, char *argv[])
 	parms.argv = argv;
 
 	parms.errstate = 0;
+
+#ifdef XBOX
+	/* set default video mode as soon as possible to obtain debug output */
+	XVideoSetMode(640, 480, 32, REFRESH_DEFAULT);
+	pb_size(PBKIT_SIZE);
+	NET_Xbox_Init();
+	atexit(NET_Xbox_Shutdown);
+#endif
 
 	COM_InitArgv(parms.argc, parms.argv);
 
@@ -153,8 +171,10 @@ int main(int argc, char *argv[])
 
 		Host_Frame (time);
 
+#ifndef XBOX
 		if (time < sys_throttle.value && !cls.timedemo)
 			SDL_Delay(1);
+#endif
 
 		oldtime = newtime;
 	}

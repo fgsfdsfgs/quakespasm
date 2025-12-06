@@ -170,8 +170,10 @@ extern PFNGLCLIENTACTIVETEXTUREARBPROC	GL_ClientActiveTextureFunc;
 extern GLint		gl_max_texture_units; //ericw
 
 //johnfitz -- anisotropic filtering
+#ifndef GL_TEXTURE_MAX_ANISOTROPY_EXT
 #define	GL_TEXTURE_MAX_ANISOTROPY_EXT		0x84FE
 #define	GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT	0x84FF
+#endif
 extern	float		gl_max_anisotropy;
 extern	qboolean	gl_anisotropy_able;
 
@@ -211,6 +213,7 @@ typedef void (APIENTRYP QS_PFNGLUNIFORM1FPROC) (GLint location, GLfloat v0);
 typedef void (APIENTRYP QS_PFNGLUNIFORM3FPROC) (GLint location, GLfloat v0, GLfloat v1, GLfloat v2);
 typedef void (APIENTRYP QS_PFNGLUNIFORM4FPROC) (GLint location, GLfloat v0, GLfloat v1, GLfloat v2, GLfloat v3);
 typedef void (APIENTRYP QS_PFNGENERATEMIPMAP) (GLenum type);
+typedef void (APIENTRYP QS_PFNGLCOLORTABLEEXTPROC) (GLenum target, GLenum internalFormat, GLsizei width, GLenum format, GLenum type, const void *data);
 
 extern QS_PFNGLCREATESHADERPROC GL_CreateShaderFunc;
 extern QS_PFNGLDELETESHADERPROC GL_DeleteShaderFunc;
@@ -242,6 +245,9 @@ extern	qboolean	gl_glsl_alias_able;
 
 //mipmapped warp textures
 extern QS_PFNGENERATEMIPMAP GL_GenerateMipmap;
+
+// palettized textures
+extern QS_PFNGLCOLORTABLEEXTPROC GL_ColorTableFunc;
 
 //ericw -- NPOT texture support
 extern	qboolean	gl_texture_NPOT;
@@ -275,6 +281,7 @@ extern qboolean gl_packed_pixels;
 #define GL_SOURCE1_ALPHA_EXT	0x8589
 extern qboolean gl_texture_env_combine;
 extern qboolean gl_texture_env_add; // for GL_EXT_texture_env_add
+extern qboolean gl_paletted_texture; // for glColorTableEXT
 
 //johnfitz -- rendering statistics
 extern int rs_brushpolys, rs_aliaspolys, rs_skypolys;

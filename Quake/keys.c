@@ -766,7 +766,11 @@ void History_Init (void)
 	}
 	key_linepos = 1;
 
-	hf = fopen(va("%s/%s", host_parms->userdir, HISTORY_FILE_NAME), "rt");
+#ifdef XBOX
+	hf = fopen(va("%s" PATHSEP "%s", host_parms->userdir, HISTORY_FILE_NAME), "r");
+#else
+	hf = fopen(va("%s" PATHSEP "%s", host_parms->userdir, HISTORY_FILE_NAME), "rt");
+#endif
 	if (hf != NULL)
 	{
 		do
@@ -803,7 +807,11 @@ void History_Shutdown (void)
 	int i;
 	FILE *hf;
 
-	hf = fopen(va("%s/%s", host_parms->userdir, HISTORY_FILE_NAME), "wt");
+#ifdef XBOX
+	hf = fopen(va("%s" PATHSEP "%s", host_parms->userdir, HISTORY_FILE_NAME), "w");
+#else
+	hf = fopen(va("%s" PATHSEP "%s", host_parms->userdir, HISTORY_FILE_NAME), "wt");
+#endif
 	if (hf != NULL)
 	{
 		i = edit_line;

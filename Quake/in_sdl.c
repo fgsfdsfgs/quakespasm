@@ -367,7 +367,10 @@ void IN_Init (void)
 	else
 		SDL_StopTextInput();
 #endif
+	/* no mouse on the xbox (yet) */
+#ifndef XBOX
 	if (safemode || COM_CheckParm("-nomouse"))
+#endif
 	{
 		no_mouse = true;
 		/* discard all mouse events when input is deactivated */
@@ -849,7 +852,7 @@ static inline int IN_SDL_KeysymToQuakeKey(SDLKey sym)
 	case SDLK_BREAK: return K_PAUSE;
 	case SDLK_PAUSE: return K_PAUSE;
 
-	case SDLK_WORLD_18: return '~'; // the '²' key
+	case SDLK_WORLD_18: return '~'; // the 'ï¿½' key
 
 	default: return 0;
 	}

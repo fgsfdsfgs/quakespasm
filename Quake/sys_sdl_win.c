@@ -21,18 +21,29 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 */
 
+#include "arch_def.h"
+
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
 #include <windows.h>
+#ifdef XBOX
+#include <hal/xbox.h>
+void COM_FixupPath (char *dst, const char *path);
+#else
 #include <mmsystem.h>
+#endif
 
 #include "quakedef.h"
 
+#ifndef XBOX
 #include <sys/types.h>
+#endif
 #include <errno.h>
+#ifndef XBOX
 #include <io.h>
 #include <direct.h>
+#endif
 
 #if defined(SDL_FRAMEWORK) || defined(NO_SDL_CONFIG)
 #if defined(USE_SDL2)
@@ -51,9 +62,16 @@ cvar_t		sys_throttle = {"sys_throttle", "0.02", CVAR_ARCHIVE};
 
 static HANDLE		hinput, houtput;
 
+#ifdef XBOX
+#define	MAX_HANDLES		16
+#else
 #define	MAX_HANDLES		32	/* johnfitz -- was 10 */
+#endif
 static FILE		*sys_handles[MAX_HANDLES];
 
+#ifdef XBOX
+static char	sys_tmppath[MAX_OSPATH + 1];
+#endif
 
 static int findhandle (void)
 {
@@ -84,6 +102,10 @@ int Sys_FileOpenRead (const char *path, int *hndl)
 {
 	FILE	*f;
 	int	i, retval;
+#ifdef XBOX
+	COM_FixupPath (sys_tmppath, path);
+	path = sys_tmppath;
+#endif
 
 	i = findhandle ();
 	f = fopen(path, "rb");
@@ -107,6 +129,10 @@ int Sys_FileOpenWrite (const char *path)
 {
 	FILE	*f;
 	int		i;
+#ifdef XBOX
+	COM_FixupPath (sys_tmppath, path);
+	path = sys_tmppath;
+#endif
 
 	i = findhandle ();
 	f = fopen(path, "wb");
@@ -144,6 +170,11 @@ int Sys_FileWrite (int handle, const void *data, int count)
 #endif
 int Sys_FileType (const char *path)
 {
+#ifdef XBOX
+	COM_FixupPath (sys_tmppath, path);
+	path = sys_tmppath;
+#endif
+
 	DWORD result = GetFileAttributes(path);
 
 	if (result == INVALID_FILE_ATTRIBUTES)
@@ -161,9 +192,14 @@ static void Sys_GetBasedir (char *argv0, char *dst, size_t dstsize)
 	char *tmp;
 	size_t rc;
 
+#ifdef XBOX
+	/* basedir == pbe path (automounted) */
+	memcpy(dst, "D:\\", 3 + 1);
+#else
 	rc = GetCurrentDirectory(dstsize, dst);
 	if (rc == 0 || rc > dstsize)
 		Sys_Error ("Couldn't determine current directory");
+#endif
 
 	tmp = dst;
 	while (*tmp != 0)
@@ -182,6 +218,7 @@ typedef HRESULT (WINAPI *SetProcessDPIAwarenessFunc)(dpi_awareness value);
 
 static void Sys_SetDPIAware (void)
 {
+#ifndef XBOX
 	HMODULE hUser32, hShcore;
 	SetProcessDPIAwarenessFunc setDPIAwareness;
 	SetProcessDPIAwareFunc setDPIAware;
@@ -205,20 +242,40 @@ static void Sys_SetDPIAware (void)
 		FreeLibrary (hShcore);
 	if (hUser32)
 		FreeLibrary (hUser32);
+#endif
 }
 
 static void Sys_SetTimerResolution(void)
 {
+#ifndef XBOX
 	/* Set OS timer resolution to 1ms.
 	   Works around buffer underruns with directsound and SDL2, but also
 	   will make Sleep()/SDL_Dleay() accurate to 1ms which should help framerate
 	   stability.
 	*/
 	timeBeginPeriod (1);
+#endif
 }
 
 void Sys_Init (void)
 {
+#ifdef XBOX
+	memset (cwd, 0, sizeof(cwd));
+	Sys_GetBasedir(NULL, cwd, sizeof(cwd));
+	host_parms->basedir = cwd;
+
+	/* userdirs not really necessary for windows guys.
+	 * can be done if necessary, though... */
+	host_parms->userdir = host_parms->basedir; /* code elsewhere relies on this ! */
+
+	/* xbox is at the very least WinNT */
+	WinNT = true;
+	Win95 = WinVista = Win95old = false;
+	/* it has one CPU */
+	host_parms->numcpus = 1;
+
+	Sys_Printf("Detected %d CPUs.\n", host_parms->numcpus);
+#else
 	OSVERSIONINFO	vinfo;
 
 	Sys_SetTimerResolution ();
@@ -279,6 +336,7 @@ void Sys_Init (void)
 		hinput = GetStdHandle (STD_INPUT_HANDLE);
 		houtput = GetStdHandle (STD_OUTPUT_HANDLE);
 	}
+#endif
 }
 
 void Sys_mkdir (const char *path)
@@ -304,6 +362,18 @@ void Sys_Error (const char *error, ...)
 	q_vsnprintf (text, sizeof(text), error, argptr);
 	va_end (argptr);
 
+#ifdef XBOX
+	FILE* out = fopen ("D:\\fatal.log", "w");
+	if (out)
+	{
+		fprintf (out, "FATAL ERROR:\n%s\n", text);
+		fclose (out);
+	}
+#ifdef DEBUG
+	DbgPrint ("FATAL ERROR:\n%s\n", text);
+#endif
+	PL_ErrorDialog (text);
+#else
 	if (isDedicated)
 		WriteFile (houtput, errortxt1, strlen(errortxt1), &dummy, NULL);
 	/* SDL will put these into its own stderr log,
@@ -322,6 +392,7 @@ void Sys_Error (const char *error, ...)
 		WriteFile (houtput, "\r\n",    2,		  &dummy, NULL);
 		SDL_Delay (3000);	/* show the console 3 more seconds */
 	}
+#endif
 
 	exit (1);
 }
@@ -336,11 +407,17 @@ void Sys_Printf (const char *fmt, ...)
 	q_vsnprintf (text, sizeof(text), fmt, argptr);
 	va_end (argptr);
 
+#ifdef XBOX
+#ifdef DEBUG
+	DbgPrint ("%s", text);
+#endif
+#else
 	if (isDedicated)
 	{
 		WriteFile(houtput, text, strlen(text), &dummy, NULL);
 	}
 	else
+#endif
 	{
 	/* SDL will put these into its own stdout log,
 	   so print to stdout even in graphical mode. */
@@ -352,8 +429,10 @@ void Sys_Quit (void)
 {
 	Host_Shutdown();
 
+#ifndef XBOX
 	if (isDedicated)
 		FreeConsole ();
+#endif
 
 	exit (0);
 }
@@ -365,6 +444,7 @@ double Sys_DoubleTime (void)
 
 const char *Sys_ConsoleInput (void)
 {
+#ifndef XBOX
 	static char	con_text[256];
 	static int	textlen;
 	INPUT_RECORD	recs[1024];
@@ -425,6 +505,7 @@ const char *Sys_ConsoleInput (void)
 		    }
 		}
 	}
+#endif
 
 	return NULL;
 }

@@ -22,6 +22,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 // common.c -- misc functions used in client and server
 
+#include "arch_def.h"
 #include "quakedef.h"
 #include "q_ctype.h"
 #include <errno.h>
@@ -1048,6 +1049,26 @@ void SZ_Print (sizebuf_t *buf, const char *data)
 //============================================================================
 
 /*
+===========
+COM_FixupPath
+
+Changes all /s and \\s in the path to PATHSEPs.
+===========
+*/
+void COM_FixupPath (char *dst, const char *path)
+{
+	int i;
+	for (i = 0; path && path[i]; ++i)
+	{
+		if (path[i] == '/' || path[i] == '\\')
+			dst[i] = PATHSEP[0];
+		else
+			dst[i] = path[i];
+	}
+	dst[i] = 0;
+}
+
+/*
 ============
 COM_SkipPath
 ============
@@ -1616,7 +1637,7 @@ void COM_WriteFile (const char *filename, const void *data, int len)
 
 	Sys_mkdir (com_gamedir); //johnfitz -- if we've switched to a nonexistant gamedir, create it now so we don't crash
 
-	q_snprintf (name, sizeof(name), "%s/%s", com_gamedir, filename);
+	q_snprintf (name, sizeof(name), "%s" PATHSEP "%s", com_gamedir, filename);
 
 	handle = Sys_FileOpenWrite (name);
 	if (handle == -1)
@@ -1734,7 +1755,10 @@ static int COM_FindFile (const char *filename, int *handle, FILE **file,
 					continue;
 			}
 
-			q_snprintf (netpath, sizeof(netpath), "%s/%s",search->filename, filename);
+			q_snprintf (netpath, sizeof(netpath), "%s" PATHSEP "%s",search->filename, filename);
+#ifdef XBOX
+			COM_FixupPath (netpath, netpath);
+#endif
 			if (! (Sys_FileType(netpath) & FS_ENT_FILE))
 				continue;
 
@@ -1955,12 +1979,22 @@ byte *COM_LoadMallocFile_TextMode_OSPath (const char *path, long *len_out)
 	FILE	*f;
 	byte	*data;
 	long	len, actuallen;
+#ifdef XBOX
+	// fixup directory separators
+	char	tmppath[MAX_OSPATH] = { 0 };
+	COM_FixupPath (tmppath, path);
+	path = tmppath;
+#endif
 
 	// ericw -- this is used by Host_Loadgame_f. Translate CRLF to LF on load games,
 	// othewise multiline messages have a garbage character at the end of each line.
 	// TODO: could handle in a way that allows loading CRLF savegames on mac/linux
 	// without the junk characters appearing.
+#ifdef XBOX
+	f = fopen (path, "r");
+#else
 	f = fopen (path, "rt");
+#endif
 	if (f == NULL)
 		return NULL;
 
@@ -2036,6 +2070,12 @@ static pack_t *COM_LoadPackFile (const char *packfile)
 	int		packhandle;
 	dpackfile_t	info[MAX_FILES_IN_PACK];
 	unsigned short	crc;
+#ifdef XBOX
+	// fixup directory separators
+	char	tmppath[MAX_OSPATH] = { 0 };
+	COM_FixupPath (tmppath, packfile);
+	packfile = tmppath;
+#endif
 
 	if (Sys_FileOpenRead (packfile, &packhandle) == -1)
 		return NULL;
@@ -2111,7 +2151,7 @@ static void COM_AddGameDirectory (const char *base, const char *dir)
 	char pakfile[MAX_OSPATH];
 	qboolean been_here = false;
 
-	q_strlcpy (com_gamedir, va("%s/%s", base, dir), sizeof(com_gamedir));
+	q_strlcpy (com_gamedir, va("%s" PATHSEP "%s", base, dir), sizeof(com_gamedir));
 
 	// assign a path_id to this game directory
 	if (com_searchpaths)
@@ -2160,7 +2200,7 @@ _add_path:
 	if (!been_here && host_parms->userdir != host_parms->basedir)
 	{
 		been_here = true;
-		q_strlcpy(com_gamedir, va("%s/%s", host_parms->userdir, dir), sizeof(com_gamedir));
+		q_strlcpy(com_gamedir, va("%s" PATHSEP "%s", host_parms->userdir, dir), sizeof(com_gamedir));
 		Sys_mkdir(com_gamedir);
 		goto _add_path;
 	}
@@ -2201,9 +2241,9 @@ static void COM_Game_f (void)
 			}
 		}
 
-		if (Sys_FileType(va("%s/%s", com_basedir, p)) != FS_ENT_DIRECTORY)
+		if (Sys_FileType(va("%s" PATHSEP "%s", com_basedir, p)) != FS_ENT_DIRECTORY)
 		{
-			if (host_parms->userdir == host_parms->basedir || (Sys_FileType(va("%s/%s", host_parms->userdir, p)) != FS_ENT_DIRECTORY))
+			if (host_parms->userdir == host_parms->basedir || (Sys_FileType(va("%s" PATHSEP "%s", host_parms->userdir, p)) != FS_ENT_DIRECTORY))
 			{
 				Con_Printf ("No such game directory \"%s\"\n", p);
 				return;
@@ -2283,7 +2323,7 @@ static void COM_Game_f (void)
 		}
 		else // just update com_gamedir
 		{
-			q_snprintf (com_gamedir, sizeof(com_gamedir), "%s/%s",
+			q_snprintf (com_gamedir, sizeof(com_gamedir), "%s" PATHSEP "%s",
 					(host_parms->userdir != host_parms->basedir)?
 						   host_parms->userdir : com_basedir,
 					GAMENAME);
@@ -2648,21 +2688,21 @@ void LOC_LoadFile (const char *file)
 	Con_Printf("\nLanguage initialization\n");
 
 	memset(&archive, 0, sizeof(archive));
-	q_snprintf(path, sizeof(path), "%s/%s", com_basedir, file);
+	q_snprintf(path, sizeof(path), "%s" PATHSEP "%s", com_basedir, file);
 	rw = SDL_RWFromFile(path, "rb");
 	#if defined(DO_USERDIRS)
 	if (!rw) {
-		q_snprintf(path, sizeof(path), "%s/%s", host_parms->userdir, file);
+		q_snprintf(path, sizeof(path), "%s" PATHSEP "%s", host_parms->userdir, file);
 		rw = SDL_RWFromFile(path, "rb");
 	}
 	#endif
 	if (!rw)
 	{
-		q_snprintf(path, sizeof(path), "%s/QuakeEX.kpf", com_basedir);
+		q_snprintf(path, sizeof(path), "%s" PATHSEP "QuakeEX.kpf", com_basedir);
 		rw = SDL_RWFromFile(path, "rb");
 		#if defined(DO_USERDIRS)
 		if (!rw) {
-			q_snprintf(path, sizeof(path), "%s/QuakeEX.kpf", host_parms->userdir);
+			q_snprintf(path, sizeof(path), "%s" PATHSEP "QuakeEX.kpf", host_parms->userdir);
 			rw = SDL_RWFromFile(path, "rb");
 		}
 		#endif

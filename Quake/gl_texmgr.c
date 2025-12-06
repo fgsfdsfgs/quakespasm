@@ -29,7 +29,7 @@ static const int	gl_alpha_format = 4;
 
 static cvar_t	gl_texturemode = {"gl_texturemode", "", CVAR_ARCHIVE};
 static cvar_t	gl_texture_anisotropy = {"gl_texture_anisotropy", "1", CVAR_ARCHIVE};
-static cvar_t	gl_max_size = {"gl_max_size", "0", CVAR_NONE};
+static cvar_t	gl_max_size = {"gl_max_size", "256", CVAR_NONE};
 static cvar_t	gl_picmip = {"gl_picmip", "0", CVAR_NONE};
 static GLint	gl_hardware_maxsize;
 
@@ -822,10 +822,10 @@ static unsigned *TexMgr_MipMapH (unsigned *data, int width, int height)
 
 /*
 ================
-TexMgr_ResampleTexture -- bilinear resample
+TexMgr_ResampleTexture -- bilinear resample for 32-bit textures
 ================
 */
-static unsigned *TexMgr_ResampleTexture (unsigned *in, int inwidth, int inheight, qboolean alpha)
+static unsigned *TexMgr_ResampleTexture32 (unsigned *in, int inwidth, int inheight, qboolean alpha)
 {
 	byte *nwpx, *nepx, *swpx, *sepx, *dest;
 	unsigned xfrac, yfrac, x, y, modx, mody, imodx, imody, injump, outjump;
@@ -877,6 +877,43 @@ static unsigned *TexMgr_ResampleTexture (unsigned *in, int inwidth, int inheight
 	}
 
 	return out;
+}
+
+/*
+================
+TexMgr_ResampleTexture -- nearest resample for 8-bit textures
+================
+*/
+static byte *TexMgr_ResampleTexture8 (byte *in, int inwidth, int inheight, int outwidth, int outheight)
+{
+	byte *outbase, *out, *inrow;
+	int i, j;
+	unsigned frac, fracstep;
+
+	if (inwidth == outwidth && inheight == outheight)
+		return in;
+
+	outbase = out = (byte *) Hunk_Alloc(outwidth*outheight);
+
+	fracstep = inwidth * 0x10000 / outwidth;
+	for (i = 0; i < outheight; i++, out += outwidth)
+	{
+		inrow = in + inwidth * (i * inheight / outheight);
+		frac = fracstep >> 1;
+		for (j = 0; j < outwidth; j += 4)
+		{
+			out[j] = inrow[frac >> 16];
+			frac += fracstep;
+			out[j + 1] = inrow[frac >> 16];
+			frac += fracstep;
+			out[j + 2] = inrow[frac >> 16];
+			frac += fracstep;
+			out[j + 3] = inrow[frac >> 16];
+			frac += fracstep;
+		}
+	}
+
+	return outbase;
 }
 
 /*
@@ -1093,7 +1130,7 @@ static void TexMgr_LoadImage32 (gltexture_t *glt, unsigned *data)
 	if (!gl_texture_NPOT)
 	{
 		// resample up
-		data = TexMgr_ResampleTexture (data, glt->width, glt->height, glt->flags & TEXPREF_ALPHA);
+		data = TexMgr_ResampleTexture32 (data, glt->width, glt->height, glt->flags & TEXPREF_ALPHA);
 		glt->width = TexMgr_Pad(glt->width);
 		glt->height = TexMgr_Pad(glt->height);
 	}
@@ -1119,6 +1156,12 @@ static void TexMgr_LoadImage32 (gltexture_t *glt, unsigned *data)
 
 	// upload
 	GL_Bind (glt);
+
+#ifdef XBOX
+	// pre-allocate mipmaps to avoid reallocating memory
+	glTexParameteri(GL_TEXTURE_2D, GL_EXPECT_MIPMAPS_PBGL, (glt->flags & TEXPREF_MIPMAP) != 0);
+#endif
+
 	internalformat = (glt->flags & TEXPREF_ALPHA) ? gl_alpha_format : gl_solid_format;
 	glTexImage2D (GL_TEXTURE_2D, 0, internalformat, glt->width, glt->height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
 
@@ -1159,6 +1202,9 @@ static void TexMgr_LoadImage8 (gltexture_t *glt, byte *data, unsigned int *usepa
 	qboolean padw = false, padh = false;
 	byte padbyte = 0;
 	int i;
+	int mipwidth, mipheight, picmip;
+	int neww, newh;
+	unsigned internalformat;
 
 	// HACK HACK HACK -- taken from tomazquake
 	if (strstr(glt->name, "shot1sid") &&
@@ -1229,22 +1275,66 @@ static void TexMgr_LoadImage8 (gltexture_t *glt, byte *data, unsigned int *usepa
 		}
 	}
 
-	// convert to 32bit
-	data = (byte *)TexMgr_8to32(data, glt->width * glt->height, usepal);
-
-	// fix edges
-	if (glt->flags & TEXPREF_ALPHA)
-		TexMgr_AlphaEdgeFix (data, glt->width, glt->height);
-	else
+	if ((glt->flags & TEXPREF_ALPHA) || !gl_paletted_texture || !GL_ColorTableFunc)
 	{
-		if (padw)
-			TexMgr_PadEdgeFixW (data, glt->source_width, glt->source_height);
-		if (padh)
-			TexMgr_PadEdgeFixH (data, glt->source_width, glt->source_height);
+		// convert to 32bit
+		data = (byte *)TexMgr_8to32(data, glt->width * glt->height, usepal);
+
+		// fix edges
+		if (glt->flags & TEXPREF_ALPHA)
+			TexMgr_AlphaEdgeFix (data, glt->width, glt->height);
+		else
+		{
+			if (padw)
+				TexMgr_PadEdgeFixW (data, glt->source_width, glt->source_height);
+			if (padh)
+				TexMgr_PadEdgeFixH (data, glt->source_width, glt->source_height);
+		}
+
+		// upload it
+		TexMgr_LoadImage32 (glt, (unsigned *)data);
+		return;
 	}
 
-	// upload it
-	TexMgr_LoadImage32 (glt, (unsigned *)data);
+	// palettized textures are supported; upload as-is
+
+	neww = glt->width;
+	newh = glt->height;
+
+	// get next power-of-two size if needed
+	if (!gl_texture_NPOT)
+	{
+		neww = TexMgr_Pad(glt->width);
+		newh = TexMgr_Pad(glt->height);
+	}
+
+	// mipmap down
+	picmip = (glt->flags & TEXPREF_NOPICMIP) ? 0 : q_max((int)gl_picmip.value, 0);
+	mipwidth = TexMgr_SafeTextureSize (neww >> picmip);
+	mipheight = TexMgr_SafeTextureSize (newh >> picmip);
+	if (neww > mipwidth)
+		neww = mipwidth;
+	if (newh > mipheight)
+		newh = mipheight;
+
+	// resample to the new size
+	data = TexMgr_ResampleTexture8 (data, glt->width, glt->height, neww, newh);
+	glt->width = neww;
+	glt->height = newh;
+
+	GL_Bind (glt);
+
+	// let GL generate mips for us
+	if (GL_GenerateMipmap && (glt->flags & TEXPREF_MIPMAP) && !(glt->flags & TEXPREF_WARPIMAGE))
+		glTexParameteri (GL_TEXTURE_2D, GL_GENERATE_MIPMAP, GL_TRUE);
+
+	// upload palette and texture; assume texture has no transparency since TEXPREF_ALPHA is handled above
+	internalformat = (glt->flags & TEXPREF_ALPHA) ? gl_alpha_format : gl_solid_format;
+	GL_ColorTableFunc (GL_TEXTURE_2D, internalformat, 256, GL_RGBA, GL_UNSIGNED_BYTE, usepal);
+	glTexImage2D (GL_TEXTURE_2D, 0, GL_COLOR_INDEX8_EXT, glt->width, glt->height, 0, GL_COLOR_INDEX, GL_UNSIGNED_BYTE, data);
+
+	// set filter modes
+	TexMgr_SetFilterModes (glt);
 }
 
 /*

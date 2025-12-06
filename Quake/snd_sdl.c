@@ -91,6 +91,14 @@ qboolean SNDDMA_Init (dma_t *dma)
 	}
 
 	/* Set up the desired format */
+#ifdef XBOX
+	desired.freq = 48000;
+	desired.format = AUDIO_S16LSB;
+	desired.channels = 2;
+	desired.samples = 1024;
+	desired.callback = paint_audio;
+	desired.userdata = NULL;
+#else
 	desired.freq = snd_mixspeed.value;
 	desired.format = (loadas8bit.value) ? AUDIO_U8 : AUDIO_S16SYS;
 	desired.channels = 2; /* = desired_channels; */
@@ -106,6 +114,7 @@ qboolean SNDDMA_Init (dma_t *dma)
 		desired.samples = 4096; /* for 96 kHz */
 	desired.callback = paint_audio;
 	desired.userdata = NULL;
+#endif
 
 	/* Open the audio device */
 	if (SDL_OpenAudio(&desired, NULL) == -1)

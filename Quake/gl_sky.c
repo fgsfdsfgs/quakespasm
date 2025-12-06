@@ -22,7 +22,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 //gl_sky.c
 
-#ifdef __WATCOMC__
+#if defined(__WATCOMC__) || defined(XBOX)
 #include <malloc.h>  /* for alloca(). */
 #endif
 #include "quakedef.h"
@@ -45,7 +45,7 @@ static gltexture_t	*solidskytexture, *alphaskytexture;
 
 extern cvar_t gl_farclip;
 static cvar_t r_fastsky = {"r_fastsky", "0", CVAR_NONE};
-static cvar_t r_sky_quality = {"r_sky_quality", "12", CVAR_NONE};
+static cvar_t r_sky_quality = {"r_sky_quality", "6", CVAR_NONE};
 static cvar_t r_skyalpha = {"r_skyalpha", "1", CVAR_NONE};
 static cvar_t r_skyfog = {"r_skyfog","0.5",CVAR_NONE};
 

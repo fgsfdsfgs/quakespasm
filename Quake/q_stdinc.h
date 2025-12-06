@@ -28,7 +28,11 @@
 #ifndef QSTDINC_H
 #define QSTDINC_H
 
+#ifdef XBOX
+#include <stdlib.h>
+#else
 #include <sys/types.h>
+#endif
 #include <stddef.h>
 #include <limits.h>
 #ifndef _WIN32 /* others we support without sys/param.h? */

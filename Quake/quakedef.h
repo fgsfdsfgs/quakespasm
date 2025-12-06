@@ -82,8 +82,13 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #define	DIST_EPSILON	(0.03125)	// 1/32 epsilon to keep floating point happy (moved from world.c)
 
+#ifdef XBOX
 #define	MAX_MSGLEN	64000		// max length of a reliable message //ericw -- was 32000
 #define	MAX_DATAGRAM	64000		// max length of unreliable message //johnfitz -- was 1024
+#else
+#define	MAX_MSGLEN	32000		// max length of a reliable message //ericw -- was 32000
+#define	MAX_DATAGRAM	32000		// max length of unreliable message //johnfitz -- was 1024
+#endif
 
 #define	DATAGRAM_MTU	1400		// johnfitz -- actual limit for unreliable messages to nonlocal clients
 
@@ -94,8 +99,13 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define	MAX_EDICTS	32000		// johnfitz -- highest allowed value for max_edicts cvar
 						// ents past 8192 can't play sounds in the standard protocol
 #define	MAX_LIGHTSTYLES	64
+#ifdef XBOX
+#define	MAX_MODELS	1024		// johnfitz -- was 256
+#define	MAX_SOUNDS	1024		// johnfitz -- was 256
+#else
 #define	MAX_MODELS	2048		// johnfitz -- was 256
 #define	MAX_SOUNDS	2048		// johnfitz -- was 256
+#endif
 
 #define	SAVEGAME_COMMENT_LENGTH	39
 
@@ -242,7 +252,19 @@ typedef struct
 #endif
 #else /**/
 #include "SDL.h"
+#ifdef XBOX
+#define GL_GLEXT_PROTOTYPES 1
+#include <GL/gl.h>
+#include <GL/glext.h>
+#include "filenames.h"
+#define PATHSEP DIR_SEPARATOR_STR
+#else
 #include "SDL_opengl.h"
+#endif
+#endif
+
+#ifndef PATHSEP
+#define	PATHSEP "/"
 #endif
 
 #ifndef APIENTRY

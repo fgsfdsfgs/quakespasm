@@ -46,7 +46,12 @@ static int	mod_novis_capacity;
 static byte	*mod_decompressed;
 static int	mod_decompressed_capacity;
 
+#ifdef XBOX
+#define	MAX_MOD_KNOWN	512
+#else
 #define	MAX_MOD_KNOWN	2048 /*johnfitz -- was 512 */
+#endif
+
 static qmodel_t	mod_known[MAX_MOD_KNOWN];
 static int		mod_numknown;
 
@@ -859,8 +864,10 @@ _load_texture:
 				Hunk_FreeToLowMark (mark);
 				q_snprintf (texturename, sizeof(texturename), "%s_warp", texturename);
 				flags = TEXPREF_NOPICMIP | TEXPREF_WARPIMAGE;
+#ifndef XBOX
 				if (GL_GenerateMipmap)
 					flags |= TEXPREF_MIPMAP;
+#endif
 				tx->warpimage = TexMgr_LoadImage (loadmodel, texturename, gl_warpimagesize,
 					gl_warpimagesize, SRC_RGBA, hunk_base, "", (src_offset_t)hunk_base, flags);
 				tx->update_warp = true;

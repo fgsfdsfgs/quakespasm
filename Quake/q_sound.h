@@ -147,8 +147,13 @@ void SNDDMA_UnblockSound(void);
  * ====================================================================
  */
 
+#ifdef XBOX
+#define	MAX_CHANNELS		256 // ericw -- was 512 /* johnfitz -- was 128 */
+#define	MAX_DYNAMIC_CHANNELS	32 /* johnfitz -- was 8   */
+#else
 #define	MAX_CHANNELS		1024 // ericw -- was 512 /* johnfitz -- was 128 */
 #define	MAX_DYNAMIC_CHANNELS	128 /* johnfitz -- was 8   */
+#endif
 
 extern	channel_t	snd_channels[MAX_CHANNELS];
 /* 0 to MAX_DYNAMIC_CHANNELS-1	= normal entity sounds

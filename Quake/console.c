@@ -21,11 +21,16 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 // console.c
 
+#ifndef XBOX
 #include <sys/types.h>
-#include <time.h>
 #include <sys/stat.h>
 #include <fcntl.h>
-#ifdef _WIN32
+#else
+#include <stdio.h>
+#include <windows.h>
+#endif
+#include <time.h>
+#if defined(_WIN32) && !defined(XBOX)
 #include <io.h>
 #else
 #include <unistd.h>
@@ -36,7 +41,11 @@ int 		con_linewidth;
 
 float		con_cursorspeed = 4;
 
+#ifdef XBOX
+#define		CON_TEXTSIZE 65536
+#else
 #define		CON_TEXTSIZE (1024 * 1024) //ericw -- was 65536. johnfitz -- new default size
+#endif
 #define		CON_MINSIZE  16384 //johnfitz -- old default, now the minimum size
 
 int		con_buffersize; //johnfitz -- user can now override default
@@ -458,7 +467,11 @@ static void Con_Print (const char *txt)
 // borrowed from uhexen2 by S.A. for new procs, LOG_Init, LOG_Close
 
 static char	logfilename[MAX_OSPATH];	// current logfile name
+#ifdef XBOX
+static FILE*	log_fd = NULL;
+#else
 static int	log_fd = -1;			// log file descriptor
+#endif
 
 /*
 ================
@@ -467,6 +480,18 @@ Con_DebugLog
 */
 void Con_DebugLog(const char *msg)
 {
+#ifdef XBOX
+	if (log_fd == NULL)
+		return;
+
+	if (fwrite(msg, strlen(msg), 1, log_fd) < 0)
+	{
+		fclose (log_fd);
+		log_fd = NULL;
+		con_debuglog = false;
+		fprintf (stderr, "Error writing to log file\n");
+	}
+#else
 	if (log_fd == -1)
 		return;
 
@@ -477,6 +502,7 @@ void Con_DebugLog(const char *msg)
 		con_debuglog = false;
 		fprintf (stderr, "Error writing to log file\n");
 	}
+#endif
 }
 
 
@@ -1282,20 +1308,36 @@ void Con_NotifyBox (const char *text)
 
 void LOG_Init (quakeparms_t *parms)
 {
-	time_t	inittime;
 	char	session[24];
-
+#ifdef XBOX
+	SYSTEMTIME	systime;
+#ifndef DEBUG
 	if (!COM_CheckParm("-condebug"))
 		return;
-
+#endif
+	// our localtime() just returns NULL
+	GetLocalTime (&systime);
+	q_snprintf (session, sizeof(session), "%02d/%02d/%04d %02d:%02d:%02d",
+		systime.wDay, systime.wMonth, systime.wYear, systime.wHour, systime.wMinute, systime.wSecond);
+	q_snprintf (logfilename, sizeof(logfilename), "D:\\qconsole.log");
+#else
+	time_t	inittime;
+	if (!COM_CheckParm("-condebug"))
+		return;
 	inittime = time (NULL);
 	strftime (session, sizeof(session), "%m/%d/%Y %H:%M:%S", localtime(&inittime));
-	q_snprintf (logfilename, sizeof(logfilename), "%s/qconsole.log", parms->basedir);
+	q_snprintf (logfilename, sizeof(logfilename), "%s" PATHSEP "qconsole.log", parms->basedir);
+#endif
 
 //	unlink (logfilename);
 
+#ifdef XBOX
+	log_fd = fopen (logfilename, "w");
+	if (log_fd == NULL)
+#else
 	log_fd = open (logfilename, O_WRONLY | O_CREAT | O_TRUNC, 0666);
 	if (log_fd == -1)
+#endif
 	{
 		fprintf (stderr, "Error: Unable to create log file %s\n", logfilename);
 		return;
@@ -1308,9 +1350,18 @@ void LOG_Init (quakeparms_t *parms)
 
 void LOG_Close (void)
 {
+#ifdef XBOX
+	if (!log_fd)
+		return;
+
+	fclose (log_fd);
+	log_fd = NULL;
+#else
 	if (log_fd == -1)
 		return;
+
 	close (log_fd);
 	log_fd = -1;
+#endif
 }
 

@@ -376,8 +376,13 @@ typedef struct {
 } aliashdr_t;
 
 #define	MAXALIASVERTS	2000 //johnfitz -- was 1024
+#ifdef XBOX
+#define	MAXALIASFRAMES	512 //spike -- was 256
+#define	MAXALIASTRIS	2048 //ericw -- was 2048
+#else
 #define	MAXALIASFRAMES	1024 //spike -- was 256
 #define	MAXALIASTRIS	4096 //ericw -- was 2048
+#endif
 extern	aliashdr_t	*pheader;
 extern	stvert_t	stverts[MAXALIASVERTS];
 extern	mtriangle_t	triangles[MAXALIASTRIS];

@@ -1,0 +1,260 @@
+# GNU Makefile for QuakeSpasm Xbox/NXDK target.
+# You need NXDK and pbGL installed, NXDK_DIR and PBGL_DIR set.
+# "make DEBUG=1" to build a debug client.
+# "make SDL_CONFIG=/path/to/sdl-config" for unusual SDL installations.
+# "make DO_USERDIRS=1" to enable user directories support
+
+# Enable/Disable user directories support
+DO_USERDIRS=0
+
+### Enable/Disable SDL2
+USE_SDL2=1
+
+### Enable/Disable codecs for streaming music support
+USE_CODEC_WAVE=1
+USE_CODEC_FLAC=0
+USE_CODEC_MP3=0
+USE_CODEC_VORBIS=0
+USE_CODEC_OPUS=0
+# either xmp or mikmod (or modplug)
+USE_CODEC_MIKMOD=0
+USE_CODEC_XMP=0
+USE_CODEC_MODPLUG=0
+USE_CODEC_UMX=0
+
+# which library to use for mp3 decoding: mad or mpg123
+MP3LIB=mad
+# which library to use for ogg decoding: vorbis or tremor
+VORBISLIB=vorbis
+
+# ---------------------------
+
+HOST_OS = $(shell uname|sed -e s/_.*//|tr '[:upper:]' '[:lower:]')
+
+# ---------------------------
+# Xbox variables
+# ---------------------------
+
+XBE_TITLE = QuakeSpasm
+GEN_XISO = $(XBE_TITLE).iso
+NXDK_DIR ?= $(CURDIR)/../../nxdk
+PBGL_DIR ?= $(NXDK_DIR)/lib/pbgl
+FLOATFMT_DIR ?= $(NXDK_DIR)/lib/nxdk-floatfmt
+NXDK_NET = y
+NXDK_SDL = y
+
+# ---------------------------
+# build variables
+# ---------------------------
+
+CC ?= gcc
+LINKER = $(CC)
+
+STRIP ?= strip
+PKG_CONFIG ?= pkg-config
+
+CPUFLAGS=
+LDFLAGS?=
+DFLAGS ?=
+CFLAGS += -Wall -Wno-trigraphs
+CFLAGS += -std=gnu11
+CFLAGS += $(CPUFLAGS)
+DFLAGS += -DXBOX_NXDK -DXBOX
+
+ifeq ($(DEBUG),y)
+DFLAGS += -DDEBUG
+CFLAGS += -O0
+else
+DFLAGS += -DNDEBUG
+CFLAGS += -O3
+endif
+
+ifeq ($(DO_USERDIRS),1)
+CFLAGS += -DDO_USERDIRS=1
+endif
+
+ifeq ($(USE_SDL2),1)
+CFLAGS += -DUSE_SDL2
+endif
+
+ifneq ($(VORBISLIB),vorbis)
+ifneq ($(VORBISLIB),tremor)
+$(error Invalid VORBISLIB setting)
+endif
+endif
+ifneq ($(MP3LIB),mpg123)
+ifneq ($(MP3LIB),mad)
+$(error Invalid MP3LIB setting)
+endif
+endif
+ifeq ($(MP3LIB),mad)
+mp3_obj=snd_mp3
+lib_mp3dec=-lmad
+endif
+ifeq ($(MP3LIB),mpg123)
+mp3_obj=snd_mpg123
+lib_mp3dec=-lmpg123
+endif
+ifeq ($(VORBISLIB),vorbis)
+cpp_vorbisdec=
+lib_vorbisdec=-lvorbisfile -lvorbis -logg
+endif
+ifeq ($(VORBISLIB),tremor)
+cpp_vorbisdec=-DVORBIS_USE_TREMOR
+lib_vorbisdec=-lvorbisidec -logg
+endif
+
+CODECLIBS  =
+ifeq ($(USE_CODEC_WAVE),1)
+CFLAGS+= -DUSE_CODEC_WAVE
+endif
+ifeq ($(USE_CODEC_FLAC),1)
+CFLAGS+= -DUSE_CODEC_FLAC
+CODECLIBS+= -lFLAC
+endif
+ifeq ($(USE_CODEC_OPUS),1)
+# opus and opusfile put their *.h under <includedir>/opus,
+# but they include the headers without the opus directory
+# prefix and rely on pkg-config. ewww...
+CFLAGS+= -DUSE_CODEC_OPUS
+CFLAGS+= $(shell $(PKG_CONFIG) --cflags opusfile)
+CODECLIBS+= $(shell $(PKG_CONFIG) --libs   opusfile)
+endif
+ifeq ($(USE_CODEC_VORBIS),1)
+CFLAGS+= -DUSE_CODEC_VORBIS $(cpp_vorbisdec)
+CODECLIBS+= $(lib_vorbisdec)
+endif
+ifeq ($(USE_CODEC_MP3),1)
+CFLAGS+= -DUSE_CODEC_MP3
+CODECLIBS+= $(lib_mp3dec)
+endif
+ifeq ($(USE_CODEC_MIKMOD),1)
+CFLAGS+= -DUSE_CODEC_MIKMOD
+CODECLIBS+= -lmikmod
+endif
+ifeq ($(USE_CODEC_XMP),1)
+CFLAGS+= -DUSE_CODEC_XMP
+CODECLIBS+= -lxmp
+endif
+ifeq ($(USE_CODEC_MODPLUG),1)
+CFLAGS+= -DUSE_CODEC_MODPLUG
+CODECLIBS+= -lmodplug
+endif
+ifeq ($(USE_CODEC_UMX),1)
+CFLAGS+= -DUSE_CODEC_UMX
+endif
+
+CFLAGS += $(DFLAGS)
+
+LIBS = $(COMMON_LIBS) $(NET_LIBS) $(CODECLIBS)
+
+# ---------------------------
+# objects
+# ---------------------------
+
+MUSIC_SRCS= bgmusic.c \
+	snd_codec.c \
+	snd_flac.c \
+	snd_wave.c \
+	snd_vorbis.c \
+	snd_opus.c \
+	$(mp3_obj).c \
+	snd_mp3tag.c \
+	snd_mikmod.c \
+	snd_modplug.c \
+	snd_xmp.c \
+	snd_umx.c
+COMSRC_SND = snd_dma.c snd_mix.c snd_mem.c $(MUSIC_SRCS)
+SYSSRC_SND = snd_sdl.c
+SYSSRC_CDA = cd_sdl.c
+SYSSRC_INPUT = in_sdl.c
+SYSSRC_GL_VID= gl_vidxbox.c
+SYSSRC_NET = net_bsd.c net_udp.c net_xbox.c
+SYSSRC_SYS = pl_xbox.c sys_sdl_win.c
+SYSSRC_MAIN= main_sdl.c
+
+GLOBJS = \
+	gl_refrag.c \
+	gl_rlight.c \
+	gl_rmain.c \
+	gl_fog.c \
+	gl_rmisc.c \
+	r_part.c \
+	r_world.c \
+	gl_screen.c \
+	gl_sky.c \
+	gl_warp.c \
+	$(SYSSRC_GL_VID) \
+	gl_draw.c \
+	image.c \
+	gl_texmgr.c \
+	gl_mesh.c \
+	r_sprite.c \
+	r_alias.c \
+	r_brush.c \
+	gl_model.c
+
+SRCS = strlcat.c \
+	strlcpy.c \
+	$(GLOBJS) \
+	$(SYSSRC_INPUT) \
+	$(COMSRC_SND) \
+	$(SYSSRC_SND) \
+	$(SYSSRC_CDA) \
+	$(SYSSRC_NET) \
+	net_dgrm.c \
+	net_loop.c \
+	net_main.c \
+	chase.c \
+	cl_demo.c \
+	cl_input.c \
+	cl_main.c \
+	cl_parse.c \
+	cl_tent.c \
+	console.c \
+	keys.c \
+	menu.c \
+	sbar.c \
+	view.c \
+	wad.c \
+	cmd.c \
+	common.c \
+	miniz.c \
+	crc.c \
+	cvar.c \
+	cfgfile.c \
+	host.c \
+	host_cmd.c \
+	mathlib.c \
+	pr_cmds.c \
+	pr_edict.c \
+	pr_exec.c \
+	sv_main.c \
+	sv_move.c \
+	sv_phys.c \
+	sv_user.c \
+	world.c \
+	zone.c \
+	$(SYSSRC_SYS) $(SYSSRC_MAIN)
+
+# ---------------------------
+# targets / rules
+# ---------------------------
+
+sinclude $(SRCS:.c=.d)
+
+include $(NXDK_DIR)/Makefile
+include $(PBGL_DIR)/config_pbgl.make
+include $(FLOATFMT_DIR)/config_floatfmt.make
+
+CFLAGS += $(PBGL_CFLAGS)
+CXXFLAGS += $(PBGL_CFLAGS)
+NXDK_LDFLAGS += -stack:524288
+
+main.exe: LDFLAGS += $(FLOATFMT_LDFLAGS)
+main.exe: $(PBGL_LIB) $(FLOATFMT_LIB)
+
+cp_data:
+	@mkdir -p $(OUTPUT_DIR)
+	@cp -r bin/id1 $(OUTPUT_DIR)/
+
