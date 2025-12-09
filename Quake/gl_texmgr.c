@@ -460,6 +460,17 @@ void TexMgr_LoadPalette (void)
 	byte *pal, *src, *dst;
 	int i, mark;
 	FILE *f;
+#ifdef XBOX
+	const unsigned int *sharedpals[] =
+	{
+		d_8to24table,
+		d_8to24table_fbright,
+		d_8to24table_nobright,
+		d_8to24table_fbright_fence,
+		d_8to24table_nobright_fence,
+		d_8to24table_conchars
+	};
+#endif
 
 	COM_FOpenFile ("gfx/palette.lmp", &f, NULL);
 	if (!f)
@@ -530,6 +541,14 @@ void TexMgr_LoadPalette (void)
 	((byte *) &d_8to24table_conchars[0]) [3] = 0;
 
 	Hunk_FreeToLowMark (mark);
+
+#ifdef XBOX
+	// upload all palettes as shared palettes 0-5
+	glEnable (GL_SHARED_TEXTURE_PALETTE_EXT);
+	for (i = 0; i < sizeof(sharedpals) / sizeof(sharedpals[0]); ++i)
+		GL_ColorTableFunc (GL_SHARED_TEXTURE_PALETTE0_PBGL + i, GL_RGB8, 256, GL_RGBA, GL_UNSIGNED_BYTE, sharedpals[i]);
+	glDisable (GL_SHARED_TEXTURE_PALETTE_EXT);
+#endif
 }
 
 /*
@@ -1205,6 +1224,9 @@ static void TexMgr_LoadImage8 (gltexture_t *glt, byte *data, unsigned int *usepa
 	int mipwidth, mipheight, picmip;
 	int neww, newh;
 	unsigned internalformat;
+#ifdef XBOX
+	unsigned paltarget = 0;
+#endif
 
 	// HACK HACK HACK -- taken from tomazquake
 	if (strstr(glt->name, "shot1sid") &&
@@ -1233,27 +1255,53 @@ static void TexMgr_LoadImage8 (gltexture_t *glt, byte *data, unsigned int *usepa
 		if (glt->flags & TEXPREF_FULLBRIGHT)
 		{
 			if (glt->flags & TEXPREF_ALPHA)
+			{
 				usepal = d_8to24table_fbright_fence;
+#ifdef XBOX
+				paltarget = GL_SHARED_TEXTURE_PALETTE3_PBGL;
+#endif
+			}
 			else
+			{
 				usepal = d_8to24table_fbright;
+#ifdef XBOX
+				paltarget = GL_SHARED_TEXTURE_PALETTE1_PBGL;
+#endif
+			}
 			padbyte = 0;
 		}
 		else if (glt->flags & TEXPREF_NOBRIGHT && gl_fullbrights.value)
 		{
 			if (glt->flags & TEXPREF_ALPHA)
+			{
 				usepal = d_8to24table_nobright_fence;
+#ifdef XBOX
+				paltarget = GL_SHARED_TEXTURE_PALETTE4_PBGL;
+#endif
+			}
 			else
+			{
 				usepal = d_8to24table_nobright;
+#ifdef XBOX
+				paltarget = GL_SHARED_TEXTURE_PALETTE2_PBGL;
+#endif
+			}
 			padbyte = 0;
 		}
 		else if (glt->flags & TEXPREF_CONCHARS)
 		{
 			usepal = d_8to24table_conchars;
+#ifdef XBOX
+			paltarget = GL_SHARED_TEXTURE_PALETTE5_PBGL;
+#endif
 			padbyte = 0;
 		}
 		else
 		{
 			usepal = d_8to24table;
+#ifdef XBOX
+			paltarget = GL_SHARED_TEXTURE_PALETTE0_PBGL;
+#endif
 			padbyte = 255;
 		}
 	}
@@ -1275,7 +1323,7 @@ static void TexMgr_LoadImage8 (gltexture_t *glt, byte *data, unsigned int *usepa
 		}
 	}
 
-	if ((glt->flags & TEXPREF_ALPHA) || !gl_paletted_texture || !GL_ColorTableFunc)
+	if (!usepal || (glt->flags & TEXPREF_ALPHA) || !gl_paletted_texture || !GL_ColorTableFunc)
 	{
 		// convert to 32bit
 		data = (byte *)TexMgr_8to32(data, glt->width * glt->height, usepal);
@@ -1329,9 +1377,25 @@ static void TexMgr_LoadImage8 (gltexture_t *glt, byte *data, unsigned int *usepa
 		glTexParameteri (GL_TEXTURE_2D, GL_GENERATE_MIPMAP, GL_TRUE);
 
 	// upload palette and texture; assume texture has no transparency since TEXPREF_ALPHA is handled above
-	internalformat = (glt->flags & TEXPREF_ALPHA) ? gl_alpha_format : gl_solid_format;
-	GL_ColorTableFunc (GL_TEXTURE_2D, internalformat, 256, GL_RGBA, GL_UNSIGNED_BYTE, usepal);
+#ifdef XBOX
+	// if we're using a shared palette, activate it
+	if (paltarget)
+	{
+		glEnable (GL_SHARED_TEXTURE_PALETTE_EXT);
+		glActiveSharedPalettePBGL (paltarget);
+	}
+	else
+#endif
+	{
+		internalformat = (glt->flags & TEXPREF_ALPHA) ? gl_alpha_format : gl_solid_format;
+		GL_ColorTableFunc (GL_TEXTURE_2D, internalformat, 256, GL_RGBA, GL_UNSIGNED_BYTE, usepal);
+	}
+
 	glTexImage2D (GL_TEXTURE_2D, 0, GL_COLOR_INDEX8_EXT, glt->width, glt->height, 0, GL_COLOR_INDEX, GL_UNSIGNED_BYTE, data);
+
+#ifdef XBOX
+	glDisable (GL_SHARED_TEXTURE_PALETTE_EXT);
+#endif
 
 	// set filter modes
 	TexMgr_SetFilterModes (glt);
